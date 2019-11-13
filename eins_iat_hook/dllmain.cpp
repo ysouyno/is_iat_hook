@@ -38,7 +38,28 @@ HWND WINAPI CreateWindowExWFilter(
 		X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 }
 
-BOOL IAT_Hook(LPVOID lpBaseAddress, const char *apiName)
+typedef int (WINAPI *__PFNMESSAGEBOXW)(
+	_In_opt_ HWND hWnd,
+	_In_opt_ LPCWSTR lpText,
+	_In_opt_ LPCWSTR lpCaption,
+	_In_ UINT uType
+	);
+
+__PFNMESSAGEBOXW org_message_box_w = NULL;
+
+int WINAPI MessageBoxWFilter(
+	_In_opt_ HWND hWnd,
+	_In_opt_ LPCWSTR lpText,
+	_In_opt_ LPCWSTR lpCaption,
+	_In_ UINT uType
+)
+{
+	OutputDebugString(L"MessageBoxWFilter");
+	return org_message_box_w(hWnd, lpText, lpCaption, uType);
+}
+
+template <typename T>
+BOOL IAT_Hook(LPVOID lpBaseAddress, const char *apiName, T new_fn, T &org_fn)
 {
 	PIMAGE_DOS_HEADER pDosHeader;
 	PIMAGE_NT_HEADERS pNtHeader;
@@ -102,13 +123,13 @@ BOOL IAT_Hook(LPVOID lpBaseAddress, const char *apiName)
 				if (strcmp(apiName, (const char *)pNameData->Name) == 0)
 				{
 					DWORD dwOldProtect, temp;
-					org_create_window_ex_w = (__PFNCREATEWINDOWEXW)pIAT->u1.Function;
+					org_fn = (T)pIAT->u1.Function;
 
 					if (!VirtualProtect(&pIAT->u1.Function, sizeof(LPVOID), PAGE_READWRITE, &dwOldProtect))
 					{
 						return FALSE;
 					}
-					pIAT->u1.Function = (DWORD_PTR)CreateWindowExWFilter;
+					pIAT->u1.Function = (DWORD_PTR)new_fn;
 					if (!VirtualProtect(&pIAT->u1.Function, sizeof(LPVOID), dwOldProtect, &temp))
 					{
 						return FALSE;
@@ -139,7 +160,10 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
-		IAT_Hook(base_addr, "CreateWindowExW");
+		IAT_Hook<__PFNCREATEWINDOWEXW>(
+			base_addr, "CreateWindowExW", CreateWindowExWFilter, org_create_window_ex_w);
+		IAT_Hook<__PFNMESSAGEBOXW>(
+			base_addr, "MessageBoxW", MessageBoxWFilter, org_message_box_w);
 		break;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:
@@ -148,4 +172,3 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	}
 	return TRUE;
 }
-

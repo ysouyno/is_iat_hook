@@ -28,6 +28,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // TODO: Place code here.
 	LoadLibrary(L"eins_iat_hook");
 
+	MessageBoxW(NULL, L"Text", L"IAT HOOK", MB_OK);
+
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_LOADBYWIN32, szWindowClass, MAX_LOADSTRING);
